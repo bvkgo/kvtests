@@ -4,35 +4,46 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
 	"os"
+	"strconv"
 
 	"github.com/bvkgo/kv"
 )
 
-type Callback struct {
+type IteratorData struct {
 	count int
+
+	f, l int
 
 	first, last string
 }
 
-func (c *Callback) HandleAscend(ctx context.Context, it kv.Iterator) error {
+func (id *IteratorData) HandleAscend(ctx context.Context, it kv.Iterator) error {
 	var err error
 	for k, _, err := it.GetNext(ctx); err == nil; k, _, err = it.GetNext(ctx) {
 		if len(k) == 0 {
 			return fmt.Errorf("key cannot be empty")
 		}
-		if k < c.last {
-			return fmt.Errorf("last key %q was larger than current %q", c.last, k)
+		v, err := strconv.Atoi(k)
+		if err != nil {
+			return fmt.Errorf("could not parse key to int: %w", err)
 		}
-		if k == c.last {
-			return fmt.Errorf("last key %q was same as the current %q", c.last, k)
+		if id.count > 0 {
+			if v < id.l {
+				return fmt.Errorf("last key %d was larger than current %d", id.l, v)
+			}
+			if v == id.l {
+				return fmt.Errorf("last key %d was same as the current %d", id.l, v)
+			}
+			if v != id.l+1 {
+				return fmt.Errorf("wanted %d, got %d", id.l+1, v)
+			}
 		}
-		if len(c.first) == 0 {
-			c.first = k
+		if id.count == 0 {
+			id.f, id.first = v, k
 		}
-		c.count++
-		c.last = k
+		id.count++
+		id.l, id.last = v, k
 	}
 	if !errors.Is(err, os.ErrNotExist) {
 		return err
@@ -40,25 +51,32 @@ func (c *Callback) HandleAscend(ctx context.Context, it kv.Iterator) error {
 	return nil
 }
 
-func (c *Callback) HandleDescend(ctx context.Context, it kv.Iterator) error {
+func (id *IteratorData) HandleDescend(ctx context.Context, it kv.Iterator) error {
 	var err error
 	for k, _, err := it.GetNext(ctx); err == nil; k, _, err = it.GetNext(ctx) {
 		if len(k) == 0 {
 			return fmt.Errorf("key cannot be empty")
 		}
-		if len(c.last) > 0 {
-			if k > c.last {
-				return fmt.Errorf("last key %q was smaller than current %q", c.last, k)
+		v, err := strconv.Atoi(k)
+		if err != nil {
+			return fmt.Errorf("could not parse key to int: %w", err)
+		}
+		if id.count > 0 {
+			if v > id.l {
+				return fmt.Errorf("last key %d was smaller than current %d", id.l, v)
 			}
-			if k == c.last {
-				return fmt.Errorf("last key %q was same as the current %q", c.last, k)
+			if v == id.l {
+				return fmt.Errorf("last key %d was same as the current %d", id.l, v)
+			}
+			if v != id.l-1 {
+				return fmt.Errorf("wanted %d, got %d", id.l-1, v)
 			}
 		}
-		if len(c.first) == 0 {
-			c.first = k
+		if id.count == 0 {
+			id.f, id.first = v, k
 		}
-		c.count++
-		c.last = k
+		id.count++
+		id.l, id.last = v, k
 	}
 	if !errors.Is(err, os.ErrNotExist) {
 		return err
@@ -66,120 +84,117 @@ func (c *Callback) HandleDescend(ctx context.Context, it kv.Iterator) error {
 	return nil
 }
 
-func RunAscendTest1(ctx context.Context, backend Backend) error {
-	nkeys := 1000
-	tx1, err := backend.NewTx(ctx)
-	if err != nil {
+func RunAscendTest1(ctx context.Context, opts *Options) error {
+	opts.setDefaults()
+	if err := opts.Check(); err != nil {
 		return err
 	}
 
-	for i := 0; i <= nkeys; i++ {
-		s := fmt.Sprintf("%03d", i)
-		if err := tx1.Set(ctx, s, s); err != nil {
-			return err
-		}
-		nkeys++
+	nkeys := opts.NumItems
+	if nkeys < 1000 {
+		return fmt.Errorf("this test needs minimum 1000 keys: %w", os.ErrInvalid)
 	}
-	if err := tx1.Commit(ctx); err != nil {
+
+	if err := FillItems(ctx, opts); err != nil {
 		return err
 	}
 	largest := fmt.Sprintf("%03d", nkeys-1)
 
 	// Iterate all keys in ascending order.
 	{
-		tx, err := backend.NewTx(ctx)
+		tx, err := opts.NewTx(ctx)
 		if err != nil {
 			return err
 		}
-		it, err := backend.NewIt(ctx)
+		it, err := opts.NewIt(ctx)
 		if err != nil {
 			return err
 		}
 		if err := tx.Ascend(ctx, "", "", it); err != nil {
 			return err
 		}
-		var cb Callback
-		if err := cb.HandleAscend(ctx, it); err != nil {
+		var id IteratorData
+		if err := id.HandleAscend(ctx, it); err != nil {
 			return err
 		}
 		if err := tx.Rollback(ctx); err != nil {
 			return err
 		}
-		if cb.count != nkeys {
-			return fmt.Errorf("wanted %d callbacks, got %d", nkeys, cb.count)
+		if id.count != nkeys {
+			return fmt.Errorf("wanted %d callbacks, got %d (first %s last %s)", nkeys, id.count, id.first, id.last)
 		}
 	}
 
 	// Iterate till the largest key with one of i or j as the empty string.
 	{
-		r := rand.Intn(nkeys)
+		r := opts.rand.Intn(nkeys)
 		x := fmt.Sprintf("%03d", r)
 
-		tx, err := backend.NewTx(ctx)
+		tx, err := opts.NewTx(ctx)
 		if err != nil {
 			return err
 		}
-		it, err := backend.NewIt(ctx)
+		it, err := opts.NewIt(ctx)
 		if err != nil {
 			return err
 		}
 		if err := tx.Ascend(ctx, x, "", it); err != nil {
 			return err
 		}
-		var cb Callback
-		if err := cb.HandleAscend(ctx, it); err != nil {
+		var id IteratorData
+		if err := id.HandleAscend(ctx, it); err != nil {
 			return err
 		}
 		if err := tx.Rollback(ctx); err != nil {
 			return err
 		}
-		if cb.first != x {
-			return fmt.Errorf("wanted %s as the first, got %s", x, cb.first)
+		if id.first != x {
+			return fmt.Errorf("wanted %s as the first, got %s", x, id.first)
 		}
-		if cb.last != largest {
-			return fmt.Errorf("wanted %s as the last, got %s", largest, cb.last)
+		if id.last != largest {
+			return fmt.Errorf("wanted %s as the last, got %s", largest, id.last)
 		}
-		if cb.count != nkeys-r {
-			return fmt.Errorf("wanted %d callbacks, got %d", nkeys-r, cb.count)
+		if id.count != nkeys-r {
+			return fmt.Errorf("wanted %d callbacks, got %d", nkeys-r, id.count)
 		}
 	}
 	{
-		r := rand.Intn(nkeys)
+		r := opts.rand.Intn(nkeys)
 		x := fmt.Sprintf("%03d", r)
 
-		tx, err := backend.NewTx(ctx)
+		tx, err := opts.NewTx(ctx)
 		if err != nil {
 			return err
 		}
-		it, err := backend.NewIt(ctx)
+		it, err := opts.NewIt(ctx)
 		if err != nil {
 			return err
 		}
 		if err := tx.Ascend(ctx, "", x, it); err != nil {
 			return err
 		}
-		var cb Callback
-		if err := cb.HandleAscend(ctx, it); err != nil {
+		var id IteratorData
+		if err := id.HandleAscend(ctx, it); err != nil {
 			return err
 		}
 		if err := tx.Rollback(ctx); err != nil {
 			return err
 		}
-		if cb.first != x {
-			return fmt.Errorf("wanted %s as the first, got %s", x, cb.first)
+		if id.first != x {
+			return fmt.Errorf("wanted %s as the first, got %s", x, id.first)
 		}
-		if cb.last != largest {
-			return fmt.Errorf("wanted %s as the last, got %s", largest, cb.last)
+		if id.last != largest {
+			return fmt.Errorf("wanted %s as the last, got %s", largest, id.last)
 		}
-		if cb.count != nkeys-r {
-			return fmt.Errorf("wanted %d callbacks, got %d", nkeys-r, cb.count)
+		if id.count != nkeys-r {
+			return fmt.Errorf("wanted %d callbacks, got %d", nkeys-r, id.count)
 		}
 	}
 
 	// Iterate randomly picked range.
 	{
-		b := rand.Intn(nkeys)
-		e := rand.Intn(nkeys)
+		b := opts.rand.Intn(nkeys)
+		e := opts.rand.Intn(nkeys)
 		x := fmt.Sprintf("%03d", b)
 		y := fmt.Sprintf("%03d", e)
 		min, max, count := x, fmt.Sprintf("%03d", e-1), e-b
@@ -187,33 +202,33 @@ func RunAscendTest1(ctx context.Context, backend Backend) error {
 			min, max, count = y, fmt.Sprintf("%03d", b-1), b-e
 		}
 
-		tx, err := backend.NewTx(ctx)
+		tx, err := opts.NewTx(ctx)
 		if err != nil {
 			return err
 		}
-		it, err := backend.NewIt(ctx)
+		it, err := opts.NewIt(ctx)
 		if err != nil {
 			return err
 		}
 		if err := tx.Ascend(ctx, x, y, it); err != nil {
 			return err
 		}
-		var cb Callback
-		if err := cb.HandleAscend(ctx, it); err != nil {
+		var id IteratorData
+		if err := id.HandleAscend(ctx, it); err != nil {
 			return err
 		}
 		if err := tx.Rollback(ctx); err != nil {
 			return err
 		}
-		if cb.count != count {
-			return fmt.Errorf("wanted %d callbacks, got %d", count, cb.count)
+		if id.count != count {
+			return fmt.Errorf("wanted %d callbacks, got %d", count, id.count)
 		}
 		if count > 0 {
-			if cb.first != min {
-				return fmt.Errorf("wanted %s as the first, got %s", min, cb.first)
+			if id.first != min {
+				return fmt.Errorf("wanted %s as the first, got %s", min, id.first)
 			}
-			if cb.last != max {
-				return fmt.Errorf("wanted %s as the last, got %s", max, cb.last)
+			if id.last != max {
+				return fmt.Errorf("wanted %s as the last, got %s", max, id.last)
 			}
 		}
 	}
@@ -221,19 +236,18 @@ func RunAscendTest1(ctx context.Context, backend Backend) error {
 	return nil
 }
 
-func RunDescendTest1(ctx context.Context, backend Backend) error {
-	nkeys := 1000
-	tx1, err := backend.NewTx(ctx)
-	if err != nil {
+func RunDescendTest1(ctx context.Context, opts *Options) error {
+	opts.setDefaults()
+	if err := opts.Check(); err != nil {
 		return err
 	}
-	for i := 0; i < nkeys; i++ {
-		s := fmt.Sprintf("%03d", i)
-		if err := tx1.Set(ctx, s, s); err != nil {
-			return err
-		}
+
+	nkeys := opts.NumItems
+	if nkeys < 1000 {
+		return fmt.Errorf("this test needs minimum 1000 keys: %w", os.ErrInvalid)
 	}
-	if err := tx1.Commit(ctx); err != nil {
+
+	if err := FillItems(ctx, opts); err != nil {
 		return err
 	}
 	smallest := fmt.Sprintf("%03d", 0)
@@ -242,105 +256,105 @@ func RunDescendTest1(ctx context.Context, backend Backend) error {
 	// Iterate all keys in ascending order.
 	{
 
-		tx, err := backend.NewTx(ctx)
+		tx, err := opts.NewTx(ctx)
 		if err != nil {
 			return err
 		}
-		it, err := backend.NewIt(ctx)
+		it, err := opts.NewIt(ctx)
 		if err != nil {
 			return err
 		}
 		if err := tx.Descend(ctx, "", "", it); err != nil {
 			return err
 		}
-		var cb Callback
-		if err := cb.HandleDescend(ctx, it); err != nil {
+		var id IteratorData
+		if err := id.HandleDescend(ctx, it); err != nil {
 			return err
 		}
 		if err := tx.Rollback(ctx); err != nil {
 			return err
 		}
-		if cb.count != nkeys {
-			return fmt.Errorf("wanted %d callbacks, got %d", nkeys, cb.count)
+		if id.count != nkeys {
+			return fmt.Errorf("wanted %d callbacks, got %d", nkeys, id.count)
 		}
-		if cb.first != largest {
-			return fmt.Errorf("wanted %q as the first, got %q", largest, cb.first)
+		if id.first != largest {
+			return fmt.Errorf("wanted %q as the first, got %q", largest, id.first)
 		}
-		if cb.last != smallest {
-			return fmt.Errorf("wanted %q as the last, got %q", smallest, cb.last)
+		if id.last != smallest {
+			return fmt.Errorf("wanted %q as the last, got %q", smallest, id.last)
 		}
 	}
 
 	// Iterate till the smallest key with one of i or j as the empty string.
 	{
-		r := rand.Intn(nkeys)
+		r := opts.rand.Intn(nkeys)
 		x := fmt.Sprintf("%03d", r)
 
-		tx, err := backend.NewTx(ctx)
+		tx, err := opts.NewTx(ctx)
 		if err != nil {
 			return err
 		}
-		it, err := backend.NewIt(ctx)
+		it, err := opts.NewIt(ctx)
 		if err != nil {
 			return err
 		}
 		if err := tx.Descend(ctx, x, "", it); err != nil {
 			return err
 		}
-		var cb Callback
-		if err := cb.HandleDescend(ctx, it); err != nil {
+		var id IteratorData
+		if err := id.HandleDescend(ctx, it); err != nil {
 			return err
 		}
 		if err := tx.Rollback(ctx); err != nil {
 			return err
 		}
-		if cb.first != x {
-			return fmt.Errorf("wanted %s as the first, got %s", x, cb.first)
+		if id.first != x {
+			return fmt.Errorf("wanted %s as the first, got %s", x, id.first)
 		}
-		if cb.last != smallest {
-			return fmt.Errorf("wanted %s as the last, got %s", smallest, cb.last)
+		if id.last != smallest {
+			return fmt.Errorf("wanted %s as the last, got %s", smallest, id.last)
 		}
-		if cb.count != r+1 {
-			return fmt.Errorf("wanted %d callbacks, got %d", r+1, cb.count)
+		if id.count != r+1 {
+			return fmt.Errorf("wanted %d callbacks, got %d", r+1, id.count)
 		}
 	}
 	{
-		r := rand.Intn(nkeys)
+		r := opts.rand.Intn(nkeys)
 		x := fmt.Sprintf("%03d", r)
 
-		tx, err := backend.NewTx(ctx)
+		tx, err := opts.NewTx(ctx)
 		if err != nil {
 			return err
 		}
-		it, err := backend.NewIt(ctx)
+		it, err := opts.NewIt(ctx)
 		if err != nil {
 			return err
 		}
 		if err := tx.Descend(ctx, "", x, it); err != nil {
 			return err
 		}
-		var cb Callback
-		if err := cb.HandleDescend(ctx, it); err != nil {
+		var id IteratorData
+		if err := id.HandleDescend(ctx, it); err != nil {
 			return err
 		}
 		if err := tx.Rollback(ctx); err != nil {
 			return err
 		}
-		if cb.first != x {
-			return fmt.Errorf("wanted %s as the first, got %s", x, cb.first)
+		if id.first != x {
+			return fmt.Errorf("wanted %s as the first, got %s", x, id.first)
 		}
-		if cb.last != smallest {
-			return fmt.Errorf("wanted %s as the last, got %s", smallest, cb.last)
+		if id.last != smallest {
+			return fmt.Errorf("wanted %s as the last, got %s", smallest, id.last)
 		}
-		if cb.count != r+1 {
-			return fmt.Errorf("wanted %d callbacks, got %d", r+1, cb.count)
+		if id.count != r+1 {
+			return fmt.Errorf("wanted %d callbacks, got %d", r+1, id.count)
 		}
 	}
 
 	// Iterate randomly picked range.
 	{
-		f := rand.Intn(nkeys)
-		l := rand.Intn(nkeys)
+		f := opts.rand.Intn(nkeys)
+		l := opts.rand.Intn(nkeys)
 		if f < l {
 			f, l = l, f
 		}
@@ -348,33 +362,33 @@ func RunDescendTest1(ctx context.Context, backend Backend) error {
 		y := fmt.Sprintf("%03d", l)
 		min, max, count := fmt.Sprintf("%03d", l+1), x, f-l
 
-		tx, err := backend.NewTx(ctx)
+		tx, err := opts.NewTx(ctx)
 		if err != nil {
 			return err
 		}
-		it, err := backend.NewIt(ctx)
+		it, err := opts.NewIt(ctx)
 		if err != nil {
 			return err
 		}
 		if err := tx.Descend(ctx, x, y, it); err != nil {
 			return err
 		}
-		var cb Callback
-		if err := cb.HandleDescend(ctx, it); err != nil {
+		var id IteratorData
+		if err := id.HandleDescend(ctx, it); err != nil {
 			return err
 		}
 		if err := tx.Rollback(ctx); err != nil {
 			return err
 		}
-		if cb.count != count {
-			return fmt.Errorf("wanted %d callbacks, got %d", count, cb.count)
+		if id.count != count {
+			return fmt.Errorf("wanted %d callbacks, got %d", count, id.count)
 		}
 		if count > 0 {
-			if cb.first != max {
-				return fmt.Errorf("wanted %s as the first, got %s", max, cb.first)
+			if id.first != max {
+				return fmt.Errorf("wanted %s as the first, got %s", max, id.first)
 			}
-			if cb.last != min {
-				return fmt.Errorf("wanted %s as the last, got %s", min, cb.last)
+			if id.last != min {
+				return fmt.Errorf("wanted %s as the last, got %s", min, id.last)
 			}
 		}
 	}
