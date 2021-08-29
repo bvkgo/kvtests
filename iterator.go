@@ -95,10 +95,10 @@ func RunAscendTest1(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("this test needs minimum 1000 keys: %w", os.ErrInvalid)
 	}
 
-	if err := FillItems(ctx, opts); err != nil {
+	_, largest, err := FillItems(ctx, opts)
+	if err != nil {
 		return err
 	}
-	largest := fmt.Sprintf("%03d", nkeys-1)
 
 	// Iterate all keys in ascending order.
 	{
@@ -128,7 +128,7 @@ func RunAscendTest1(ctx context.Context, opts *Options) error {
 	// Iterate till the largest key with one of i or j as the empty string.
 	{
 		r := opts.rand.Intn(nkeys)
-		x := fmt.Sprintf("%03d", r)
+		x := opts.getItem(r)
 
 		tx, err := opts.NewTx(ctx)
 		if err != nil {
@@ -160,7 +160,7 @@ func RunAscendTest1(ctx context.Context, opts *Options) error {
 	}
 	{
 		r := opts.rand.Intn(nkeys)
-		x := fmt.Sprintf("%03d", r)
+		x := opts.getItem(r)
 
 		tx, err := opts.NewTx(ctx)
 		if err != nil {
@@ -195,11 +195,11 @@ func RunAscendTest1(ctx context.Context, opts *Options) error {
 	{
 		b := opts.rand.Intn(nkeys)
 		e := opts.rand.Intn(nkeys)
-		x := fmt.Sprintf("%03d", b)
-		y := fmt.Sprintf("%03d", e)
-		min, max, count := x, fmt.Sprintf("%03d", e-1), e-b
+		x := opts.getItem(b)
+		y := opts.getItem(e)
+		min, max, count := x, opts.getItem(e-1), e-b
 		if y < x {
-			min, max, count = y, fmt.Sprintf("%03d", b-1), b-e
+			min, max, count = y, opts.getItem(b-1), b-e
 		}
 
 		tx, err := opts.NewTx(ctx)
@@ -247,11 +247,10 @@ func RunDescendTest1(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("this test needs minimum 1000 keys: %w", os.ErrInvalid)
 	}
 
-	if err := FillItems(ctx, opts); err != nil {
+	smallest, largest, err := FillItems(ctx, opts)
+	if err != nil {
 		return err
 	}
-	smallest := fmt.Sprintf("%03d", 0)
-	largest := fmt.Sprintf("%03d", nkeys-1)
 
 	// Iterate all keys in ascending order.
 	{
@@ -288,7 +287,7 @@ func RunDescendTest1(ctx context.Context, opts *Options) error {
 	// Iterate till the smallest key with one of i or j as the empty string.
 	{
 		r := opts.rand.Intn(nkeys)
-		x := fmt.Sprintf("%03d", r)
+		x := opts.getItem(r)
 
 		tx, err := opts.NewTx(ctx)
 		if err != nil {
@@ -320,7 +319,7 @@ func RunDescendTest1(ctx context.Context, opts *Options) error {
 	}
 	{
 		r := opts.rand.Intn(nkeys)
-		x := fmt.Sprintf("%03d", r)
+		x := opts.getItem(r)
 
 		tx, err := opts.NewTx(ctx)
 		if err != nil {
@@ -358,9 +357,9 @@ func RunDescendTest1(ctx context.Context, opts *Options) error {
 		if f < l {
 			f, l = l, f
 		}
-		x := fmt.Sprintf("%03d", f)
-		y := fmt.Sprintf("%03d", l)
-		min, max, count := fmt.Sprintf("%03d", l+1), x, f-l
+		x := opts.getItem(f)
+		y := opts.getItem(l)
+		min, max, count := opts.getItem(l+1), x, f-l
 
 		tx, err := opts.NewTx(ctx)
 		if err != nil {
