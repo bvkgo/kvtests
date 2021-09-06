@@ -90,7 +90,7 @@ func RunAscendTest1(ctx context.Context, opts *Options) error {
 		return err
 	}
 
-	nkeys := opts.NumItems
+	nkeys := opts.NumKeys
 	if nkeys < 1000 {
 		return fmt.Errorf("this test needs minimum 1000 keys: %w", os.ErrInvalid)
 	}
@@ -128,7 +128,7 @@ func RunAscendTest1(ctx context.Context, opts *Options) error {
 	// Iterate till the largest key with one of i or j as the empty string.
 	{
 		r := opts.rand.Intn(nkeys)
-		x := opts.getItem(r)
+		x := opts.getKey(r)
 
 		tx, err := opts.NewTx(ctx)
 		if err != nil {
@@ -160,7 +160,7 @@ func RunAscendTest1(ctx context.Context, opts *Options) error {
 	}
 	{
 		r := opts.rand.Intn(nkeys)
-		x := opts.getItem(r)
+		x := opts.getKey(r)
 
 		tx, err := opts.NewTx(ctx)
 		if err != nil {
@@ -195,11 +195,11 @@ func RunAscendTest1(ctx context.Context, opts *Options) error {
 	{
 		b := opts.rand.Intn(nkeys)
 		e := opts.rand.Intn(nkeys)
-		x := opts.getItem(b)
-		y := opts.getItem(e)
-		min, max, count := x, opts.getItem(e-1), e-b
+		x := opts.getKey(b)
+		y := opts.getKey(e)
+		min, max, count := x, opts.getKey(e-1), e-b
 		if y < x {
-			min, max, count = y, opts.getItem(b-1), b-e
+			min, max, count = y, opts.getKey(b-1), b-e
 		}
 
 		tx, err := opts.NewTx(ctx)
@@ -242,7 +242,7 @@ func RunDescendTest1(ctx context.Context, opts *Options) error {
 		return err
 	}
 
-	nkeys := opts.NumItems
+	nkeys := opts.NumKeys
 	if nkeys < 1000 {
 		return fmt.Errorf("this test needs minimum 1000 keys: %w", os.ErrInvalid)
 	}
@@ -287,7 +287,7 @@ func RunDescendTest1(ctx context.Context, opts *Options) error {
 	// Iterate till the smallest key with one of i or j as the empty string.
 	{
 		r := opts.rand.Intn(nkeys)
-		x := opts.getItem(r)
+		x := opts.getKey(r)
 
 		tx, err := opts.NewTx(ctx)
 		if err != nil {
@@ -319,7 +319,7 @@ func RunDescendTest1(ctx context.Context, opts *Options) error {
 	}
 	{
 		r := opts.rand.Intn(nkeys)
-		x := opts.getItem(r)
+		x := opts.getKey(r)
 
 		tx, err := opts.NewTx(ctx)
 		if err != nil {
@@ -357,9 +357,9 @@ func RunDescendTest1(ctx context.Context, opts *Options) error {
 		if f < l {
 			f, l = l, f
 		}
-		x := opts.getItem(f)
-		y := opts.getItem(l)
-		min, max, count := opts.getItem(l+1), x, f-l
+		x := opts.getKey(f)
+		y := opts.getKey(l)
+		min, max, count := opts.getKey(l+1), x, f-l
 
 		tx, err := opts.NewTx(ctx)
 		if err != nil {

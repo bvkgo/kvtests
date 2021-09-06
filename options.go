@@ -1,7 +1,6 @@
 package kvtests
 
 import (
-	"context"
 	"fmt"
 	"math/rand"
 	"os"
@@ -11,19 +10,19 @@ import (
 )
 
 type Options struct {
-	NewTx func(context.Context) (kv.Transaction, error)
-	NewIt func(context.Context) (kv.Iterator, error)
+	NewTx kv.NewTxFunc
+	NewIt kv.NewIterFunc
 
 	Seed int64
 
-	NumItems int
+	NumKeys int
 
 	rand *rand.Rand
 }
 
 func (opts *Options) setDefaults() {
-	if opts.NumItems == 0 {
-		opts.NumItems = 1000
+	if opts.NumKeys == 0 {
+		opts.NumKeys = 1000
 	}
 	if opts.Seed == 0 {
 		opts.Seed = time.Now().UnixNano()
@@ -38,41 +37,52 @@ func (opts *Options) Check() error {
 	return nil
 }
 
-func (opts *Options) getItem(i int) string {
+func (opts *Options) getKey(i int) string {
 	return fmt.Sprintf("%08d", i)
 }
 
-func (opts *Options) getKeyPair() [2]string {
-	k1 := opts.getItem(opts.rand.Intn(opts.NumItems))
-	k2 := opts.getItem(opts.rand.Intn(opts.NumItems))
-	for k2 == k1 {
-		k2 = opts.getItem(opts.rand.Intn(opts.NumItems))
+func (opts *Options) selectKeys(n int) ([]string, error) {
+	if opts.NumKeys < n*2 {
+		return nil, fmt.Errorf("at least %d keys are required", 2*n)
 	}
-	return [2]string{k1, k2}
+
+	var keys []string
+	usedKeys := make(map[int]struct{})
+	for i := 0; i < n; i++ {
+		k := opts.rand.Intn(opts.NumKeys)
+		for _, ok := usedKeys[k]; ok; {
+			k = opts.rand.Intn(opts.NumKeys)
+		}
+		keys = append(keys, opts.getKey(k))
+	}
+	return keys, nil
 }
 
-func (opts *Options) getKeyPairs(npairs int) ([][2]string, error) {
-	if opts.NumItems < 2*npairs*2 {
-		return nil, fmt.Errorf("%d random key pairs need %d items", 2*npairs*2)
+// selectKeySets retrieves 'nset' slices of each with 'nkey' randomly chosen
+// non-duplicate keys.
+func (opts *Options) selectKeySets(nset, nkey int) ([][]string, error) {
+	if opts.NumKeys < nset*nkey*2 {
+		return nil, fmt.Errorf("at least %d keys are required", 2*nset*nkey)
 	}
 
-	var keyPairs [][2]string
-	keyMap := make(map[string]int)
-	for i := 0; i < npairs; i++ {
-		k1 := opts.getItem(opts.rand.Intn(opts.NumItems))
-		for _, ok := keyMap[k1]; ok; {
-			k1 = opts.getItem(opts.rand.Intn(opts.NumItems))
+	rs := make([]int, 0, nset*nkey)
+	usedKeys := make(map[int]struct{})
+	for i := 0; i < nset*nkey; i++ {
+		k := opts.rand.Intn(opts.NumKeys)
+		for _, ok := usedKeys[k]; ok; {
+			k = opts.rand.Intn(opts.NumKeys)
 		}
-		keyMap[k1] = i
-
-		k2 := opts.getItem(opts.rand.Intn(opts.NumItems))
-		for _, ok := keyMap[k2]; ok; {
-			k2 = opts.getItem(opts.rand.Intn(opts.NumItems))
-		}
-		keyMap[k2] = i
-
-		keyPairs = append(keyPairs, [2]string{k1, k2})
+		rs = append(rs, k)
 	}
 
-	return keyPairs, nil
+	start := 0
+	keys := make([][]string, nset)
+	for i := range keys {
+		keys[i] = make([]string, 0, nkey)
+
+		for j := start; j < len(rs); j++ {
+			keys[i] = append(keys[i], opts.getKey(rs[j]))
+		}
+	}
+	return keys, nil
 }
