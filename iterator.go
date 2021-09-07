@@ -117,7 +117,7 @@ func RunAscendTest1(ctx context.Context, opts *Options) error {
 		if err := id.HandleAscend(ctx, it); err != nil {
 			return err
 		}
-		if err := tx.Rollback(ctx); err != nil {
+		if err := tx.Discard(ctx); err != nil {
 			return err
 		}
 		if id.count != nkeys {
@@ -145,7 +145,7 @@ func RunAscendTest1(ctx context.Context, opts *Options) error {
 		if err := id.HandleAscend(ctx, it); err != nil {
 			return err
 		}
-		if err := tx.Rollback(ctx); err != nil {
+		if err := tx.Discard(ctx); err != nil {
 			return err
 		}
 		if id.first != x {
@@ -177,7 +177,7 @@ func RunAscendTest1(ctx context.Context, opts *Options) error {
 		if err := id.HandleAscend(ctx, it); err != nil {
 			return err
 		}
-		if err := tx.Rollback(ctx); err != nil {
+		if err := tx.Discard(ctx); err != nil {
 			return err
 		}
 		if id.first != x {
@@ -217,7 +217,7 @@ func RunAscendTest1(ctx context.Context, opts *Options) error {
 		if err := id.HandleAscend(ctx, it); err != nil {
 			return err
 		}
-		if err := tx.Rollback(ctx); err != nil {
+		if err := tx.Discard(ctx); err != nil {
 			return err
 		}
 		if id.count != count {
@@ -270,7 +270,7 @@ func RunDescendTest1(ctx context.Context, opts *Options) error {
 		if err := id.HandleDescend(ctx, it); err != nil {
 			return err
 		}
-		if err := tx.Rollback(ctx); err != nil {
+		if err := tx.Discard(ctx); err != nil {
 			return err
 		}
 		if id.count != nkeys {
@@ -304,7 +304,7 @@ func RunDescendTest1(ctx context.Context, opts *Options) error {
 		if err := id.HandleDescend(ctx, it); err != nil {
 			return err
 		}
-		if err := tx.Rollback(ctx); err != nil {
+		if err := tx.Discard(ctx); err != nil {
 			return err
 		}
 		if id.first != x {
@@ -336,7 +336,7 @@ func RunDescendTest1(ctx context.Context, opts *Options) error {
 		if err := id.HandleDescend(ctx, it); err != nil {
 			return err
 		}
-		if err := tx.Rollback(ctx); err != nil {
+		if err := tx.Discard(ctx); err != nil {
 			return err
 		}
 		if id.first != x {
@@ -376,7 +376,7 @@ func RunDescendTest1(ctx context.Context, opts *Options) error {
 		if err := id.HandleDescend(ctx, it); err != nil {
 			return err
 		}
-		if err := tx.Rollback(ctx); err != nil {
+		if err := tx.Discard(ctx); err != nil {
 			return err
 		}
 		if id.count != count {

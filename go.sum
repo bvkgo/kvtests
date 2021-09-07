@@ -4,5 +4,7 @@ github.com/bvkgo/kv v0.0.0-20210808221408-e27312603f8e h1:j3ehAMUrmaAJXpv92DRcuI
 github.com/bvkgo/kv v0.0.0-20210808221408-e27312603f8e/go.mod h1:DJs+HxZ3vV3oYD2ZXYz0EkV3cy2JYDr5Xn9K8wQCPjg=
 github.com/bvkgo/kv v0.0.0-20210905224340-f9c4ef3f42a8 h1:otf7heknyj5vr0ZazI29eonYr/QUnphlwoqzwux2O/A=
 github.com/bvkgo/kv v0.0.0-20210905224340-f9c4ef3f42a8/go.mod h1:DJs+HxZ3vV3oYD2ZXYz0EkV3cy2JYDr5Xn9K8wQCPjg=
+github.com/bvkgo/kv v0.0.0-20210907002905-6c9f8a6b6bc0 h1:x6OXzwn1f7FlvsmEVCK2reHZj//lxklHPLicFfZlSK8=
+github.com/bvkgo/kv v0.0.0-20210907002905-6c9f8a6b6bc0/go.mod h1:Vmrh/gZVSoqzveT0v6BkUUnIwSLLs7NG/tIa4/VkBns=
 golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 h1:go1bK/D/BFZV2I8cIQd1NKEZ+0owSTG1fDTci4IqFcE=
 golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=

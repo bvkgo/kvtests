@@ -107,7 +107,7 @@ func (it *IsolationTest) runSteps(ctx context.Context, newTx kv.NewTxFunc, keys 
 		if status != nil {
 			for _, tx := range txes {
 				if tx != nil {
-					_ = tx.Rollback(ctx)
+					_ = tx.Discard(ctx)
 				}
 			}
 		}
@@ -158,7 +158,7 @@ func (it *IsolationTest) runSteps(ctx context.Context, newTx kv.NewTxFunc, keys 
 		}
 
 		if re == AbortRe {
-			if err := txes[i].Rollback(ctx); err != nil {
+			if err := txes[i].Discard(ctx); err != nil {
 				it.results[i] = err
 			}
 			txes[i] = nil
@@ -189,7 +189,7 @@ func clearKeys(ctx context.Context, newTx kv.NewTxFunc, keys []string) (status e
 	}
 	defer func() {
 		if status != nil {
-			_ = tx.Rollback(ctx)
+			_ = tx.Discard(ctx)
 		}
 	}()
 
@@ -212,7 +212,7 @@ func getKeys(ctx context.Context, newTx kv.NewTxFunc, keys []string) (vs []strin
 	}
 	defer func() {
 		if status != nil {
-			_ = tx.Rollback(ctx)
+			_ = tx.Discard(ctx)
 		}
 	}()
 
